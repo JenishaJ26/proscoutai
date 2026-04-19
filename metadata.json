@@ -1,0 +1,9 @@
+{
+  "name": "ProScout AI",
+  "description": "An AI-powered sports talent assessment platform featuring progress tracking, leaderboards, and expert scouting insights.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}

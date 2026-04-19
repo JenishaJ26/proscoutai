@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Athlete or Scout profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["athlete", "scout", "admin"] },
+        "sport": { "type": "string" },
+        "bio": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Assessment": {
+      "title": "Talent Assessment",
+      "description": "Evaluation of an athlete's performance",
+      "type": "object",
+      "properties": {
+        "athleteId": { "type": "string" },
+        "scoutId": { "type": "string" },
+        "sport": { "type": "string" },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "speed": { "type": "number" },
+            "agility": { "type": "number" },
+            "strength": { "type": "number" },
+            "technique": { "type": "number" },
+            "stamina": { "type": "number" }
+          }
+        },
+        "aiInsight": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["athleteId", "scoutId", "metrics"]
+    },
+    "News": {
+      "title": "News Feed",
+      "description": "Sports news items",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles keyed by UID"
+    },
+    "/assessments/{assessmentId}": {
+      "schema": "Assessment",
+      "description": "Scouting assessments"
+    },
+    "/news/{newsId}": {
+      "schema": "News",
+      "description": "Global sports news feed"
+    },
+    "/admins/{adminId}": {
+      "schema": {
+        "title": "Admin Metadata",
+        "type": "object",
+        "properties": {
+          "email": { "type": "string" },
+          "provisionedAt": { "type": "number" }
+        }
+      },
+      "description": "Restricted admin lookup for RBAC authorization"
+    }
+  }
+}

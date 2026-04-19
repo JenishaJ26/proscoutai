@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+    function isScout() {
+      return isSignedIn() && getUserData(request.auth.uid).role == 'scout';
+    }
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // --- Collections ---
+
+    // Users
+    match /users/{userId} {
+      allow get: if isSignedIn() && (isOwner(userId) || isScout() || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && 
+                      incoming().keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+                      (incoming().role in ['athlete', 'scout'] || (incoming().role == 'admin' && incoming().email == 'jenisha261205@gmail.com')) && 
+                      incoming().uid == userId &&
+                      incoming().createdAt == request.time;
+      allow update: if (isOwner(userId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'bio', 'photoURL', 'sport']) &&
+                       incoming().uid == userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Assessments
+    match /assessments/{assessmentId} {
+      allow get: if isSignedIn() && (isScout() || existing().athleteId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (isScout() || resource.data.athleteId == request.auth.uid || isAdmin());
+      
+      allow create: if (isScout() &&
+                       incoming().keys().hasAll(['athleteId', 'scoutId', 'metrics', 'timestamp']) &&
+                       incoming().scoutId == request.auth.uid &&
+                       incoming().timestamp == request.time &&
+                       exists(/databases/$(database)/documents/users/$(incoming().athleteId))) || isAdmin();
+      
+      allow update: if (isScout() && 
+                       existing().scoutId == request.auth.uid &&
+                       incoming().diff(existing()).affectedKeys().hasAny(['metrics', 'aiInsight', 'videoUrl', 'videoAnalysis']) &&
+                       incoming().timestamp == request.time) || isAdmin();
+      
+      allow delete: if isAdmin();
+    }
+
+    // News
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Admins metadata
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(adminId) && get(/databases/$(database)/documents/users/$(adminId)).data.email == 'jenisha261205@gmail.com';
+      allow update, delete: if isAdmin();
+    }
+  }
+}
