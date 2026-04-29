@@ -84,6 +84,7 @@ export default function AthleteDashboard() {
           athleteId: user?.uid,
           athleteName: user?.displayName,
           sport: user?.preferredSport || 'General',
+          type: 'self',
           metrics: extractedMetrics,
           videoUrl: videoUrl,
           videoAnalysis: feedback,
@@ -103,6 +104,11 @@ export default function AthleteDashboard() {
     }
   };
 
+  const extractInsights = (insight: string) => {
+    const keywords = ['Stamina', 'Kinetic', 'Power', 'Technique', 'Agility', 'Speed', 'Strength', 'Recovery', 'Endurance', 'Explosive'];
+    return keywords.filter(kw => insight.toLowerCase().includes(kw.toLowerCase())).slice(0, 3);
+  };
+
   const generateTrainingPlan = async () => {
     if (assessments.length === 0) return;
     setGeneratingPlan(true);
@@ -118,7 +124,7 @@ export default function AthleteDashboard() {
         model: "gemini-3-flash-preview",
         contents: `Generate a detailed, technical, 7-day training plan for athlete ${user?.displayName} based on this assessment history: ${JSON.stringify(history)}. 
         Identify specific weaknesses and provide concrete exercises. Focus on ${user?.preferredSport || 'general athletic excellence'}. 
-        Format as clear markdown with futuristic terminology.`
+        Format as clear markdown with futuristic terminology. Use sections like "PROTOCOL SYNOPSIS", "DAILY DRILLS", and "NEURAL RECOVERY".`
       });
       setTrainingPlan(response.text || "Failed to synthesize training protocols.");
     } catch (err) {
@@ -276,15 +282,35 @@ export default function AthleteDashboard() {
                           <div className="w-10 h-10 rounded-lg bg-bg flex items-center justify-center font-bold text-accent">
                              {new Date(a.timestamp).getDate()}
                           </div>
-                          <div>
-                             <div className="flex items-center gap-2">
-                               <p className="text-xs font-bold text-text-main">{a.sport}</p>
-                               {a.type === 'self' && (
-                                 <span className="px-1 py-0.5 bg-accent/10 border border-accent/20 rounded-[3px] text-[7px] font-black uppercase text-accent">Self</span>
-                               )}
-                             </div>
-                             <p className="text-[10px] text-text-dim uppercase font-black tracking-widest">{new Date(a.timestamp).toLocaleDateString()}</p>
-                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-xs font-bold text-text-main">{a.sport}</p>
+                              {a.type === 'self' && (
+                                <span className="px-1 py-0.5 bg-accent/10 border border-accent/20 rounded-[3px] text-[7px] font-black uppercase text-accent">Self</span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1 mb-2">
+                               {extractInsights(a.aiInsight || "").map((tag, idx) => (
+                                 <span key={idx} className="px-1.5 py-0.5 bg-surface-alt border border-border rounded text-[6px] font-black uppercase tracking-widest text-text-dim">
+                                   {tag}
+                                 </span>
+                               ))}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[10px] text-text-dim uppercase font-black tracking-widest">{new Date(a.timestamp).toLocaleDateString()}</p>
+                              {a.videoUrl && (
+                                <a 
+                                  href={a.videoUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[8px] font-black uppercase text-accent hover:underline flex items-center gap-1"
+                                >
+                                  <Video size={8} /> Footage
+                                </a>
+                              )}
+                            </div>
+                         </div>
                        </div>
                        <div className="text-right">
                           <p className="text-sm font-bold text-accent">{(Object.values(a.metrics).reduce((s, v) => s + v, 0) / 5).toFixed(1)}</p>
@@ -295,31 +321,49 @@ export default function AthleteDashboard() {
                 </div>
              </div>
 
-             <div className="bg-surface p-6 rounded-2xl border border-border flex flex-col justify-between">
+             <div className="bg-surface p-6 rounded-2xl border border-border flex flex-col justify-between relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-accent/5 blur-3xl -mr-12 -mt-12 transition-all group-hover:bg-accent/10" />
+                
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-widest mb-6 flex items-center gap-2">
-                    <BrainCircuit size={16} className="text-purple-400" /> Neural Guidance
+                    <BrainCircuit size={16} className="text-purple-400" /> Neural Guidance Protocol
                   </h3>
                   <AnimatePresence mode="wait">
                     {trainingPlan ? (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-h-64 overflow-y-auto pr-2 scrollbar-hide">
-                        <div className="markdown-body text-[10px] leading-relaxed italic">
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }} 
+                        animate={{ opacity: 1, y: 0 }} 
+                        className="max-h-72 overflow-y-auto pr-3 scrollbar-hide space-y-4"
+                      >
+                        <div className="markdown-body p-4 bg-bg/50 border border-border/50 rounded-xl text-[10px] leading-relaxed font-medium text-text-dim">
                           <ReactMarkdown>{trainingPlan}</ReactMarkdown>
                         </div>
                       </motion.div>
                     ) : (
-                      <p className="text-xs text-text-dim leading-relaxed font-medium">
-                        Analysis of your last 5 sessions indicates an 8% increase in kinetic power output. Your technique index is currently plateauing.
-                      </p>
+                      <div className="p-6 text-center border border-dashed border-border rounded-xl bg-surface-alt/50">
+                        <p className="text-[10px] text-text-dim leading-relaxed font-black uppercase tracking-widest mb-4">
+                          No active protocol detected. Synthesize telemetry history to unlock personalized drills.
+                        </p>
+                        <Target className="mx-auto text-border mb-2" size={32} />
+                      </div>
                     )}
                   </AnimatePresence>
                 </div>
                 <button 
                   onClick={generateTrainingPlan}
                   disabled={generatingPlan || assessments.length === 0}
-                  className="w-full mt-6 py-4 bg-accent text-bg rounded-xl font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50"
+                  className="w-full mt-6 py-4 bg-accent text-bg rounded-xl font-black text-[10px] uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-accent/10 disabled:opacity-50 relative z-10"
                 >
-                  {generatingPlan ? 'Synthesizing...' : 'Generate AI Training Plan'}
+                  {generatingPlan ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <BrainCircuit className="animate-spin" size={14} />
+                      Synthesizing Matrix...
+                    </div>
+                  ) : trainingPlan ? (
+                    'Refresh Neural Plan' 
+                  ) : (
+                    'Initialize AI Protocol'
+                  )}
                 </button>
              </div>
           </div>
@@ -366,8 +410,11 @@ export default function AthleteDashboard() {
                           isSelected ? "bg-accent/10 border-accent/30 text-accent" : "bg-surface-alt border-border text-text-dim"
                         )}
                       >
-                         <div className="min-w-0">
-                            <p className="text-[10px] font-bold truncate tracking-tighter">{a.sport}</p>
+                         <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1">
+                              <p className="text-[10px] font-bold truncate tracking-tighter">{a.sport}</p>
+                              {a.videoUrl && <Video size={6} className="text-accent" />}
+                            </div>
                             <p className="text-[7px] font-black uppercase">{new Date(a.timestamp).toLocaleDateString()}</p>
                          </div>
                          <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center shrink-0">

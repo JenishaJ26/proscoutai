@@ -31,7 +31,7 @@ interface Message {
 export default function ChatbotPage() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'model', content: "Interface active. AI Scout v3.0 initialized. Analysis of neural performance telemetry enabled. You can now reference specific assessments to optimize your guidance protocols." }
+    { role: 'model', content: "Interface active. AI Scout v3.5 initialized. I am your AthletiQ neural link—ready to analyze your performance telemetry, provide specialized sports training advice, or guide you through the matrix's features. How can I optimize your career path today?" }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,10 +87,30 @@ export default function ChatbotPage() {
           { role: 'user', parts: [{ text: contextualInput }] }
         ],
         config: {
-          systemInstruction: `You are the Neural Scout Assistant, an advanced talent analyzer within the AthletiQ AI Matrix. 
-          Use technical, data-intensive, and futuristic terminology.
-          When a user references contextual telemetry (assessment data), analyze the specific metrics provided.
-          Current Protocol Subject: ${user?.displayName}, Role: ${user?.role}.`
+          systemInstruction: `You are the Neural Scout Assistant, a high-fidelity intelligence layer within the AthletiQ AI Matrix. 
+          Your mission is to provide expert sports analysis, performance advice, and technical support for this application.
+
+          USER ORIENTATION:
+          - Be professional, data-driven, and futuristic, yet highly user-friendly and encouraging.
+          - Address the user as ${user?.displayName || 'Athlete'}. Your current role context is: ${user?.role}.
+
+          SPORTS EXPERTISE:
+          - Provide deep insights into training methodologies (HIIT, plyometrics, recovery protocols).
+          - Offer advice on specific sports techniques and recruitment strategies.
+          - Use data-intensive terminology when analyzing assessments.
+
+          APPLICATION KNOWLEDGE (AthletiQ Matrix):
+          - Dashboard: Athletes use the "Performance Pulse" to track Speed, Agility, Strength, Technique, and Stamina via Radar and Area charts.
+          - Multi-Assessment Comparison: Users can select two logs on their dashboard to see side-by-side metric intersections.
+          - AI Training Plans: You can generate personalized 7-day protocols on the Athlete Dashboard based on history.
+          - Video Intelligence: Our "Neural Video Assessment" uses computer vision (Gemini 3) to extract metrics from MP4/MOV files or URLs.
+          - Leaderboard: Shows global U19 circuit rankings, filterable by sport.
+          - Hub: Real-time global sports news and circuit updates.
+
+          PROTOCOL:
+          - If the user references contextual telemetry (assessment data), perform a rigorous biomechanical analysis.
+          - If the user asks about app features, guide them clearly on where to find them.
+          - Always maintain the sleek, dark aesthetic of the "Neural Matrix" in your tone.`
         }
       });
 
@@ -214,6 +234,25 @@ export default function ChatbotPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <div className="max-w-4xl mx-auto mb-4 flex flex-wrap gap-2 overflow-x-auto scrollbar-hide pb-2">
+           {[
+             "How do I compare assessments?",
+             "Analyze my latest stamina metrics",
+             "Best HIIT protocol for agility?",
+             "How does video assessment work?",
+             "What is the Global Rank index?"
+           ].map((query, i) => (
+             <button
+               key={i}
+               onClick={() => setInput(query)}
+               className="shrink-0 px-3 py-1.5 bg-surface border border-border rounded-full text-[9px] font-black uppercase tracking-widest text-text-dim hover:text-accent hover:border-accent transition-all animate-in fade-in slide-in-from-bottom-2"
+               style={{ animationDelay: `${i * 100}ms` }}
+             >
+               {query}
+             </button>
+           ))}
+        </div>
 
         <form onSubmit={handleSend} className="relative max-w-4xl mx-auto flex gap-3">
           <div className="relative flex-1 group">
