@@ -92,7 +92,7 @@ export default function ScoutDashboard() {
           metrics,
           videoUrl: videoAnalysisData?.url,
           videoAnalysis: videoAnalysisData?.feedback,
-          aiInsight: videoAnalysisData?.feedback || `Performance matrix synchronized. Average score: ${Object.values(metrics).reduce((a, b) => a + b, 0) / 5}%`
+          aiInsight: videoAnalysisData?.feedback || `Performance matrix synchronized. Average score: ${(Object.values(metrics) as number[]).reduce((a, b) => a + b, 0) / 5}%`
         })
       });
 
@@ -119,7 +119,7 @@ export default function ScoutDashboard() {
   // Derived data for charts
   const progressData = [...filteredAssessments].reverse().map(a => ({
     date: new Date(a.timestamp).toLocaleDateString(),
-    score: Object.values(a.metrics).reduce((acc, v) => acc + v, 0) / 5,
+    score: (Object.values(a.metrics) as number[]).reduce((acc, v) => acc + v, 0) / 5,
   }));
 
   const latestMetrics = filteredAssessments[0]?.metrics || { speed: 0, agility: 0, strength: 0, technique: 0, stamina: 0 };
@@ -174,7 +174,7 @@ export default function ScoutDashboard() {
            )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
           <button 
             onClick={() => {
               if (user?.role === 'athlete') setSelectedAthleteId(user.uid);
@@ -203,7 +203,7 @@ export default function ScoutDashboard() {
         {/* Progress/Video Section */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-surface p-6 rounded-xl border border-border">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <h3 className="text-sm font-semibold tracking-tight">Aggregate Talent Progress (30-Day History)</h3>
               <div className="px-2 py-0.5 bg-accent/10 border border-accent/20 rounded text-[9px] font-black uppercase tracking-widest text-accent">
                 Live Data
@@ -291,7 +291,7 @@ export default function ScoutDashboard() {
                 <div className="grid grid-cols-2 gap-3 mt-4">
                   <div className="p-3 bg-bg rounded-lg border border-border">
                     <p className="text-[8px] font-black text-text-dim uppercase mb-1">Peak Score</p>
-                    <p className="text-lg font-bold text-text-main">{filteredAssessments.length > 0 ? Math.max(...filteredAssessments.map(a => Object.values(a.metrics).reduce((sum, v) => sum + v, 0) / 5)).toFixed(1) : '0.0'}</p>
+                    <p className="text-lg font-bold text-text-main">{filteredAssessments.length > 0 ? Math.max(...filteredAssessments.map(a => (Object.values(a.metrics) as number[]).reduce((sum, v) => sum + v, 0) / 5)).toFixed(1) : '0.0'}</p>
                   </div>
                   <div className="p-3 bg-bg rounded-lg border border-border">
                     <p className="text-[8px] font-black text-text-dim uppercase mb-1">Consistency</p>
@@ -357,7 +357,7 @@ export default function ScoutDashboard() {
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-mono font-bold text-accent">
-                    {(Object.values(a.metrics).reduce((acc, v) => acc + v, 0) / 5).toFixed(1)}
+                    {((Object.values(a.metrics) as number[]).reduce((acc, v) => acc + v, 0) / 5).toFixed(1)}
                   </div>
                   {a.videoUrl && <div className="text-[8px] text-accent font-bold uppercase tracking-tighter">Video Scan [OK]</div>}
                 </div>

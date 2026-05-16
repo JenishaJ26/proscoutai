@@ -1,0 +1,42 @@
+[
+  {
+    "uid": "1776665329608",
+    "email": "jenisha261205@gmail.com",
+    "password": "$2b$10$bX18IXaNPmGQIPTd7EaKXuDvUKovcRJHJI1hVrPPbqUMSeN0gUDJq",
+    "displayName": "jenisha",
+    "role": "admin",
+    "createdAt": 1776665329609
+  },
+  {
+    "uid": "1776665385391",
+    "email": "aakash@gmail.com",
+    "password": "$2b$10$4LLjBArhKcpPGYuK/8soX.vNmCfPwrTsmnkk0Hr01n3w6a7W/iudC",
+    "displayName": "aakash",
+    "role": "athlete",
+    "createdAt": 1776665385391
+  },
+  {
+    "uid": "1777182467511",
+    "email": "scout@test.com",
+    "password": "$2b$10$jqzcxP.d9mX0S7f.8DLJDOoFioWu/ormMzBbi5fhwk6DQ9qfvtLBG",
+    "displayName": "Test Scout",
+    "role": "scout",
+    "createdAt": 1777182467511
+  },
+  {
+    "uid": "1778646741303",
+    "email": "jenisha@gmail.com",
+    "password": "$2b$10$lCsWe9Cz1vROHqQAr9rrzuYedWMhvTPstEgsJqWwZvgMZa5kLPoGa",
+    "displayName": "Jenisha",
+    "role": "athlete",
+    "createdAt": 1778646741303
+  },
+  {
+    "uid": "1778748497554",
+    "email": "user1@gmail.com",
+    "password": "$2b$10$XDuLhlwoJlRpneGs5g64w.05TeUolpUD64vbefEPPIRuxak8Fjs66",
+    "displayName": "rinsha",
+    "role": "athlete",
+    "createdAt": 1778748497554
+  }
+]

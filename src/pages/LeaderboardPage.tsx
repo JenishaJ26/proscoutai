@@ -114,7 +114,7 @@ export default function LeaderboardPage() {
           <p className="text-text-dim text-sm font-medium uppercase tracking-widest text-[10px]">U19 Global Circuit Rank Deployment</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim group-focus-within:text-accent transition-colors" size={14} />
             <input 
@@ -122,16 +122,16 @@ export default function LeaderboardPage() {
               placeholder="Search prospects..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-surface border border-border rounded-lg py-2 pl-10 pr-4 outline-none focus:border-accent transition-all font-medium text-xs text-text-main w-64 uppercase tracking-tighter" 
+              className="bg-surface border border-border rounded-lg py-2 pl-10 pr-4 outline-none focus:border-accent transition-all font-medium text-xs text-text-main w-full sm:w-64 uppercase tracking-tighter" 
             />
           </div>
           
-          <div className="relative group">
+          <div className="relative group w-full sm:w-auto">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim pointer-events-none" size={14} />
             <select 
               value={sportFilter}
               onChange={(e) => setSportFilter(e.target.value)}
-              className="appearance-none bg-surface border border-border rounded-lg py-2 pl-10 pr-10 outline-none focus:border-accent transition-all font-black text-[9px] text-text-main uppercase tracking-widest cursor-pointer"
+              className="appearance-none bg-surface border border-border rounded-lg py-2 pl-10 pr-10 outline-none focus:border-accent transition-all font-black text-[9px] text-text-main uppercase tracking-widest cursor-pointer w-full"
             >
               {sports.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -303,7 +303,7 @@ export default function LeaderboardPage() {
                             </div>
                             <div className="flex items-center gap-4">
                                <div className="text-right">
-                                  <p className="text-xs font-mono font-black text-accent">{(Object.values(a.metrics).reduce((s, v) => s + v, 0) / 5).toFixed(1)}</p>
+                                  <p className="text-xs font-mono font-black text-accent">{((Object.values(a.metrics) as number[]).reduce((s, v) => s + v, 0) / 5).toFixed(1)}</p>
                                   <p className="text-[8px] font-black text-text-dim uppercase group-hover/item:text-accent transition-colors">Aggregate</p>
                                </div>
                             </div>
