@@ -40,7 +40,7 @@ const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.JWT_SECRET || 'proscout-neural-key-2026';
 const DB_PATH = path.join(process.cwd(), 'data');
 const UPLOADS_PATH = path.join(DB_PATH, 'uploads');
@@ -425,6 +425,40 @@ async function startServer() {
       if (err.errorDetails) console.error("Details:", JSON.stringify(err.errorDetails, null, 2));
       
       res.status(500).json({ error: "Neural link failed", details: err.message });
+    }
+  });
+
+  // --- Video Analysis API ---
+  app.post('/api/analyze-video', authenticateToken, async (req, res) => {
+    const { videoData, mimeType, videoUrl, prompt } = req.body;
+    const genAI = new GoogleGenAI({ 
+      apiKey: process.env.GEMINI_API_KEY || ''
+    });
+
+    try {
+      let parts: any[] = [{ text: prompt }];
+      
+      if (videoData) {
+        parts.push({
+          inlineData: {
+            data: videoData,
+            mimeType: mimeType || 'video/mp4'
+          }
+        });
+      } else if (videoUrl) {
+        parts.push({ text: `Analyze the video found at this link: ${videoUrl}. Focus on stamina and core kinetic metrics.` });
+      }
+
+      const response = await genAI.models.generateContent({
+        model: "gemini-1.5-flash", // Use stable model
+        contents: [{ parts }]
+      });
+
+      const botText = response.text || "Neural engine could not formulate a report.";
+      res.json({ text: botText });
+    } catch (err: any) {
+      console.error("Server Video Analysis Error:", err);
+      res.status(500).json({ error: "Neural link failed during video telemetry analysis.", details: err.message });
     }
   });
 
