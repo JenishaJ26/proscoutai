@@ -11,44 +11,30 @@ import multer from 'multer';
 import Parser from 'rss-parser';
 import { GoogleGenAI } from '@google/genai';
 import * as dotenv from 'dotenv';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  where, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc,
-  orderBy,
-  limit,
-  serverTimestamp,
-  Timestamp
-} from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json' assert { type: 'json' };
 
 dotenv.config();
-
-// Initialize Firebase
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 const SECRET_KEY = process.env.JWT_SECRET || 'proscout-neural-key-2026';
 const DB_PATH = path.join(process.cwd(), 'data');
 const UPLOADS_PATH = path.join(DB_PATH, 'uploads');
+const USERS_FILE = path.join(DB_PATH, 'users.json');
+const ASSESSMENTS_FILE = path.join(DB_PATH, 'assessments.json');
 
-// Initialize DB paths for local uploads
+// Initialize DB paths and files
 if (!fs.existsSync(DB_PATH)) fs.mkdirSync(DB_PATH);
 if (!fs.existsSync(UPLOADS_PATH)) fs.mkdirSync(UPLOADS_PATH);
+if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2));
+if (!fs.existsSync(ASSESSMENTS_FILE)) fs.writeFileSync(ASSESSMENTS_FILE, JSON.stringify([], null, 2));
 
+// Helper Functions for Local DB
+const loadUsers = () => JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+const saveUsers = (users: any[]) => fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+const loadAssessments = () => JSON.parse(fs.readFileSync(ASSESSMENTS_FILE, 'utf8'));
+const saveAssessments = (assessments: any[]) => fs.writeFileSync(ASSESSMENTS_FILE, JSON.stringify(assessments, null, 2));
 
 // Multer Configuration
 const storage = multer.diskStorage({
@@ -72,12 +58,7 @@ async function startServer() {
   app.use(cookieParser());
   app.use(cors());
 
-  // Serve uploads statically
   app.use('/uploads', express.static(UPLOADS_PATH));
-
-  // Serve uploads statically
-  app.use('/uploads', express.static(UPLOADS_PATH));
-
 
   // Middleware to verify JWT
   const authenticateToken = (req: any, res: any, next: any) => {
@@ -97,11 +78,8 @@ async function startServer() {
     const { email, password, displayName, role } = req.body;
 
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
+      const users = loadUsers();
+      if (users.find((u: any) => u.email === email)) {
         return res.status(400).json({ error: 'Identity already initialized in matrix' });
       }
 
@@ -110,7 +88,7 @@ async function startServer() {
       const finalRole = isAdminAccount ? 'admin' : role;
 
       const newUser = {
-        uid: Date.now().toString(), // Firebase usually generates IDs, but we'll keep this for consistency with your existing JWT logic
+        uid: Date.now().toString(),
         email,
         password: hashedPassword,
         displayName,
@@ -118,21 +96,22 @@ async function startServer() {
         createdAt: Date.now()
       };
 
-      await setDoc(doc(db, 'users', newUser.uid), newUser);
+      users.push(newUser);
+      saveUsers(users);
 
       const { password: _, ...userWithoutPassword } = newUser;
       const token = jwt.sign(userWithoutPassword, SECRET_KEY, { expiresIn: '7d' });
       
       res.cookie('token', token, { 
         httpOnly: true, 
-        secure: true, 
-        sameSite: 'none',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000 
       });
       res.json({ user: userWithoutPassword, token });
     } catch (err) {
-      console.error("Registration error:", err);
-      res.status(500).json({ error: "Could not sync with neural registry" });
+      console.error("Registration error FULL DETAILS:", err);
+      res.status(500).json({ error: "Could not sync with neural registry", details: err instanceof Error ? err.message : String(err) });
     }
   });
 
@@ -140,16 +119,12 @@ async function startServer() {
     const { email, password } = req.body;
     
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email));
-      const querySnapshot = await getDocs(q);
+      const users = loadUsers();
+      const user = users.find((u: any) => u.email === email);
 
-      if (querySnapshot.empty) {
+      if (!user) {
         return res.status(401).json({ error: 'Invalid access sequence' });
       }
-
-      const userDoc = querySnapshot.docs[0];
-      const user = userDoc.data();
 
       if (!(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ error: 'Invalid access sequence' });
@@ -160,14 +135,14 @@ async function startServer() {
       
       res.cookie('token', token, { 
         httpOnly: true, 
-        secure: true, 
-        sameSite: 'none',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000 
       });
       res.json({ user: userWithoutPassword, token });
     } catch (err) {
-      console.error("Login error:", err);
-      res.status(500).json({ error: "Auth matrix connection unstable" });
+      console.error("Login error FULL DETAILS:", err);
+      res.status(500).json({ error: "Auth matrix connection unstable", details: err instanceof Error ? err.message : String(err) });
     }
   });
 
@@ -176,7 +151,7 @@ async function startServer() {
   });
 
   app.post('/api/auth/logout', (req, res) => {
-    res.clearCookie('token', { secure: true, sameSite: 'none' });
+    res.clearCookie('token', { sameSite: 'lax' });
     res.json({ success: true });
   });
 
@@ -192,12 +167,12 @@ async function startServer() {
     const { displayName, bio, preferredSport } = req.body;
     
     try {
-      const userRef = doc(db, 'users', req.user.uid);
-      const userSnap = await getDoc(userRef);
+      const users = loadUsers();
+      const userIndex = users.findIndex((u: any) => u.uid === req.user.uid);
 
-      if (!userSnap.exists()) return res.status(404).json({ error: 'User not found in matrix' });
+      if (userIndex === -1) return res.status(404).json({ error: 'User not found in matrix' });
 
-      const currentData = userSnap.data();
+      const currentData = users[userIndex];
       const updatedData = {
         ...currentData,
         displayName: displayName || currentData.displayName,
@@ -206,15 +181,16 @@ async function startServer() {
         sport: preferredSport || currentData.sport
       };
 
-      await updateDoc(userRef, updatedData);
+      users[userIndex] = updatedData;
+      saveUsers(users);
 
       const { password: _, ...userWithoutPassword } = updatedData;
       const token = jwt.sign(userWithoutPassword, SECRET_KEY, { expiresIn: '7d' });
       res.cookie('token', token, { 
         httpOnly: true, 
-        secure: true, 
-        sameSite: 'none',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000 
       });
       
       res.json({ user: userWithoutPassword });
@@ -224,17 +200,41 @@ async function startServer() {
     }
   });
 
+  app.put('/api/auth/security', authenticateToken, async (req: any, res) => {
+    const { currentPassword, newPassword } = req.body;
+    
+    try {
+      const users = loadUsers();
+      const userIndex = users.findIndex((u: any) => u.uid === req.user.uid);
+
+      if (userIndex === -1) return res.status(404).json({ error: 'User not found in matrix' });
+
+      const user = users[userIndex];
+      if (!(await bcrypt.compare(currentPassword, user.password))) {
+        return res.status(401).json({ error: 'Current matrix key is invalid.' });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      users[userIndex].password = hashedPassword;
+      saveUsers(users);
+
+      res.json({ message: 'Neural key updated successfully.' });
+    } catch (err) {
+      console.error("Security update error:", err);
+      res.status(500).json({ error: "Could not update security matrix" });
+    }
+  });
+
   // --- News API ---
   app.get('/api/news', async (req, res) => {
     const parser = new Parser({
       timeout: 5000,
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+      headers: { 'User-Agent': 'Mozilla/5.0' }
     });
     const feeds = [
       'https://www.espn.com/espn/rss/news',
       'https://rss.nytimes.com/services/xml/rss/nyt/Sports.xml',
-      'https://feeds.bbci.co.uk/sport/rss.xml',
-      'https://www.theguardian.com/sport/rss'
+      'https://feeds.bbci.co.uk/sport/rss.xml'
     ];
 
     try {
@@ -252,7 +252,6 @@ async function startServer() {
             link: item.link
           }));
         } catch (e) {
-          console.warn(`Feed synchronization failed for ${url}:`, e);
           return [];
         }
       });
@@ -261,7 +260,6 @@ async function startServer() {
       const items = results.flat();
 
       if (items.length === 0) {
-        // Mock fallback if all external feeds are unreachable in this environment
         const fallbackItems = [
           {
             id: 'fallback-1',
@@ -272,31 +270,14 @@ async function startServer() {
             category: "Intelligence",
             imageUrl: "https://picsum.photos/seed/neural1/800/600",
             link: "#"
-          },
-          {
-            id: 'fallback-2',
-            title: "Matrix Connection Stable: Regional Talent Updates",
-            excerpt: "Scouts report a surge in high-efficiency performance metrics across emerging youth academies.",
-            author: "Network Lead",
-            date: new Date().toISOString(),
-            category: "Regional",
-            imageUrl: "https://picsum.photos/seed/matrix2/800/600",
-            link: "#"
           }
         ];
         return res.json(fallbackItems);
       }
 
-      // Sort by date descending
-      const sortedItems = items.sort((a, b) => {
-        const dateA = a.date ? new Date(a.date).getTime() : 0;
-        const dateB = b.date ? new Date(b.date).getTime() : 0;
-        return dateB - dateA;
-      });
-
+      const sortedItems = items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       res.json(sortedItems.slice(0, 30)); 
     } catch (err) {
-      console.error("General news matrix error:", err);
       res.status(500).json({ error: "Intelligence sync failure" });
     }
   });
@@ -307,20 +288,19 @@ async function startServer() {
     try {
       const userRole = req.user.role;
       const userId = req.user.uid;
-      const assessmentsRef = collection(db, 'assessments');
-      let q;
+      const assessments = loadAssessments();
+      let filtered;
 
       if (userRole === 'admin') {
-        q = query(assessmentsRef, orderBy('timestamp', 'desc'));
+        filtered = assessments;
       } else if (userRole === 'scout') {
-        q = query(assessmentsRef, where('scoutId', '==', userId), orderBy('timestamp', 'desc'));
+        filtered = assessments.filter((a: any) => a.scoutId === userId);
       } else {
-        q = query(assessmentsRef, where('athleteId', '==', userId), orderBy('timestamp', 'desc'));
+        filtered = assessments.filter((a: any) => a.athleteId === userId);
       }
 
-      const querySnapshot = await getDocs(q);
-      const assessments = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      res.json(assessments);
+      const sorted = filtered.sort((a: any, b: any) => b.timestamp - a.timestamp);
+      res.json(sorted);
     } catch (err) {
       console.error("Fetch assessments error:", err);
       res.status(500).json({ error: "Telemetry link failure" });
@@ -336,15 +316,18 @@ async function startServer() {
     }
 
     try {
+      const assessments = loadAssessments();
       const newAssessment = {
+        id: Date.now().toString(),
         ...req.body,
         scoutId: userRole === 'athlete' ? null : userId,
         type: userRole === 'athlete' ? 'self' : 'scout',
         timestamp: Date.now()
       };
 
-      const docRef = await addDoc(collection(db, 'assessments'), newAssessment);
-      res.json({ id: docRef.id, ...newAssessment });
+      assessments.push(newAssessment);
+      saveAssessments(assessments);
+      res.json(newAssessment);
     } catch (err) {
       console.error("Create assessment error:", err);
       res.status(500).json({ error: "Matrix write failure" });
@@ -354,18 +337,13 @@ async function startServer() {
   // --- Users API ---
   app.get('/api/users/athletes', authenticateToken, async (req, res) => {
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('role', '==', 'athlete'));
-      const querySnapshot = await getDocs(q);
-      
-      const athletes = querySnapshot.docs.map(doc => {
-        const { password, ...safeUser } = doc.data();
-        return { id: doc.id, ...safeUser };
+      const users = loadUsers();
+      const athletes = users.filter((u: any) => u.role === 'athlete').map((u: any) => {
+        const { password, ...safeUser } = u;
+        return safeUser;
       });
-      
       res.json(athletes);
     } catch (err) {
-      console.error("Fetch athletes error:", err);
       res.status(500).json({ error: "Could not retrieve athlete matrix" });
     }
   });
@@ -373,96 +351,41 @@ async function startServer() {
   // --- Chat API ---
   app.post('/api/chat', authenticateToken, async (req: any, res) => {
     const { messages, contextualInput = '', config: reqConfig } = req.body;
-    const genAI = new GoogleGenAI({ 
-      apiKey: process.env.GEMINI_API_KEY || ''
-    });
+    const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
     
     try {
-      console.log("[DEBUG] Chat API Received Messages Count:", messages.length);
-      console.log("[DEBUG] Chat API Contextual Input:", contextualInput);
-
-      // Filter out initial model message
       let combinedHistory = messages.filter((m: any, i: number) => !(i === 0 && m.role === 'model'));
-      
-      // Map to Gemini format
       const formattedHistory = combinedHistory.map((m: any) => ({ 
         role: m.role, 
         parts: [{ text: m.content }] 
       }));
 
-      // Add current message
       const contents = [...formattedHistory];
       const lastMessage = contents[contents.length - 1];
       
-      // Only append contextualInput if it's not already the last message in history
-      // (This handles cases where the frontend might have already updated its state)
       if (!lastMessage || lastMessage.role !== 'user' || lastMessage.parts[0].text !== contextualInput) {
         contents.push({ role: 'user', parts: [{ text: contextualInput }] });
       }
 
-      // Final check: Ensure alternating roles (User/Model/User...)
       const alternatingContents = contents.filter((m, i) => i === 0 || m.role !== contents[i - 1].role);
-
-      console.log("[DEBUG] Final Contents to Gemini:", JSON.stringify(alternatingContents, null, 2));
 
       const response = await genAI.models.generateContent({
         model: "models/gemini-flash-latest",
         contents: alternatingContents,
         config: {
           systemInstruction: {
-            parts: [{ text: reqConfig?.systemInstruction || `You are an intelligent, friendly, and supportive AI assistant for a sports and wellness platform. Speak like a helpful coach and friend, not like a technical expert.` }]
+            parts: [{ text: reqConfig?.systemInstruction || `You are an intelligent, friendly, and supportive AI assistant for a sports and wellness platform.` }]
           }
         }
       });
 
-      console.log("[DEBUG] Gemini Response received");
       const botText = response.text || (typeof response.text === 'function' ? response.text() : "I'm processing your request.");
       res.json({ text: botText });
     } catch (err: any) {
-      console.error("Server Chat Error:", err);
-      if (err.status) console.error("Status:", err.status);
-      if (err.message) console.error("Message:", err.message);
-      if (err.errorDetails) console.error("Details:", JSON.stringify(err.errorDetails, null, 2));
-      
       res.status(500).json({ error: "Neural link failed", details: err.message });
     }
   });
 
-  // --- Video Analysis API ---
-  app.post('/api/analyze-video', authenticateToken, async (req, res) => {
-    const { videoData, mimeType, videoUrl, prompt } = req.body;
-    const genAI = new GoogleGenAI({ 
-      apiKey: process.env.GEMINI_API_KEY || ''
-    });
-
-    try {
-      let parts: any[] = [{ text: prompt }];
-      
-      if (videoData) {
-        parts.push({
-          inlineData: {
-            data: videoData,
-            mimeType: mimeType || 'video/mp4'
-          }
-        });
-      } else if (videoUrl) {
-        parts.push({ text: `Analyze the video found at this link: ${videoUrl}. Focus on stamina and core kinetic metrics.` });
-      }
-
-      const response = await genAI.models.generateContent({
-        model: "gemini-1.5-flash", // Use stable model
-        contents: [{ parts }]
-      });
-
-      const botText = response.text || "Neural engine could not formulate a report.";
-      res.json({ text: botText });
-    } catch (err: any) {
-      console.error("Server Video Analysis Error:", err);
-      res.status(500).json({ error: "Neural link failed during video telemetry analysis.", details: err.message });
-    }
-  });
-
-  // Vite middleware setup
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

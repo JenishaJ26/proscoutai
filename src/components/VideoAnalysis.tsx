@@ -18,9 +18,11 @@ import {
   Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface VideoAnalysisProps {
   onAnalysisComplete: (feedback: string, videoUrl: string) => void;
@@ -80,7 +82,28 @@ export default function VideoAnalysis({ onAnalysisComplete }: VideoAnalysisProps
     setParsedMetrics(null);
     setParsedKpis(null);
     
-    const prompt = `Analyze this sports performance video with the precision of a high-end scouting system. 
+    try {
+      let videoPart: any;
+      let finalVideoUrl = videoUrl;
+
+      if (videoFile) {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        });
+        reader.readAsDataURL(videoFile);
+        const base64Data = await base64Promise;
+        videoPart = {
+          inlineData: {
+            data: base64Data,
+            mimeType: videoFile.type
+          }
+        };
+      } else {
+        videoPart = { text: `[SYSTEM: Analyze athlete performance from this URL: ${videoUrl}]` };
+      }
+
+      const prompt = `Analyze this sports performance video with the precision of a high-end scouting system. 
       
       Perform the following neural scans:
       1. HUMAN POSE ESTIMATION (HPE): Track joint keypoints (shoulders, elbows, knees). Analyze angles, stride length, and kinetic chain alignment.
@@ -111,38 +134,20 @@ export default function VideoAnalysis({ onAnalysisComplete }: VideoAnalysisProps
           "reaction_time": string
         }
       }`;
-
-    try {
-      let finalVideoUrl = videoUrl;
-      let requestBody: any = { prompt, videoUrl: finalVideoUrl };
-
-      if (videoFile) {
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve) => {
-          reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        });
-        reader.readAsDataURL(videoFile);
-        const base64Data = await base64Promise;
-        requestBody = {
-          prompt,
-          videoData: base64Data,
-          mimeType: videoFile.type
-        };
-      }
-
-      const response = await fetch('/api/analyze-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            parts: [
+              { text: prompt },
+              videoFile ? videoPart : { text: `Analyze the video found at this link: ${videoUrl}. Focus on stamina and core kinetic metrics.` }
+            ]
+          }
+        ]
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "API link failed");
-      }
-
-      const data = await response.json();
-      const text = data.text || "Neural engine could not formulate a report. Insufficient kinetic data.";
+      
+      const text = response.text || "Neural engine could not formulate a report. Insufficient kinetic data.";
       
       // Attempt to extract JSON metrics and KPIs
       try {
