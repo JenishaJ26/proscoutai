@@ -17,7 +17,7 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto border-b border-border">
         <div className="text-xl font-extrabold tracking-tighter text-accent flex items-center gap-2">
-          <span className="text-2xl">◈</span> PROSCOUT AI
+          <span className="text-2xl">◈</span> ATHLETIQ AI
         </div>
         <div className="flex items-center gap-6">
           <Link to="/login" className="text-xs font-bold uppercase tracking-widest text-text-dim hover:text-text-main transition-colors">Login</Link>
@@ -46,7 +46,7 @@ export default function LandingPage() {
             <span className="text-transparent bg-clip-text bg-gradient-to-b from-text-main to-text-dim/40">Talent Discovery.</span>
           </h1>
           <p className="text-lg text-text-dim max-w-xl mx-auto mb-14 font-medium leading-relaxed">
-            ProScout AI uses real-time biomechanics and performance telemetry to identify the world's next elite prospects before they reach the mainstream.
+            Athletiq AI uses real-time biomechanics and performance telemetry to identify the world's next elite prospects before they reach the mainstream.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
             <Link 
@@ -152,7 +152,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="py-12 px-8 border-t border-border flex flex-col md:flex-row items-center justify-between max-w-7xl mx-auto text-[10px] font-bold text-text-dim tracking-widest uppercase">
-        <div>© 2026 PROSCOUT AI SYSTEMS. ALL RIGHTS RESERVED.</div>
+        <div>© 2026 ATHLETIQ AI SYSTEMS. ALL RIGHTS RESERVED.</div>
         <div className="flex gap-8 mt-6 md:mt-0">
           <a href="#" className="hover:text-accent transition-colors">Security</a>
           <a href="#" className="hover:text-accent transition-colors">Privacy</a>

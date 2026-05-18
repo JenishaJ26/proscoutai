@@ -9,10 +9,6 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import multer from 'multer';
 import Parser from 'rss-parser';
-import { GoogleGenAI } from '@google/genai';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,20 +17,17 @@ const PORT = 3000;
 const SECRET_KEY = process.env.JWT_SECRET || 'proscout-neural-key-2026';
 const DB_PATH = path.join(process.cwd(), 'data');
 const UPLOADS_PATH = path.join(DB_PATH, 'uploads');
+
+// Ensure DB and Uploads directories exist
+if (!fs.existsSync(DB_PATH)) fs.mkdirSync(DB_PATH);
+if (!fs.existsSync(UPLOADS_PATH)) fs.mkdirSync(UPLOADS_PATH);
+
 const USERS_FILE = path.join(DB_PATH, 'users.json');
 const ASSESSMENTS_FILE = path.join(DB_PATH, 'assessments.json');
 
-// Initialize DB paths and files
-if (!fs.existsSync(DB_PATH)) fs.mkdirSync(DB_PATH);
-if (!fs.existsSync(UPLOADS_PATH)) fs.mkdirSync(UPLOADS_PATH);
-if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2));
-if (!fs.existsSync(ASSESSMENTS_FILE)) fs.writeFileSync(ASSESSMENTS_FILE, JSON.stringify([], null, 2));
-
-// Helper Functions for Local DB
-const loadUsers = () => JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-const saveUsers = (users: any[]) => fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-const loadAssessments = () => JSON.parse(fs.readFileSync(ASSESSMENTS_FILE, 'utf8'));
-const saveAssessments = (assessments: any[]) => fs.writeFileSync(ASSESSMENTS_FILE, JSON.stringify(assessments, null, 2));
+// Initialize DB files
+if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([]));
+if (!fs.existsSync(ASSESSMENTS_FILE)) fs.writeFileSync(ASSESSMENTS_FILE, JSON.stringify([]));
 
 // Multer Configuration
 const storage = multer.diskStorage({
@@ -58,7 +51,12 @@ async function startServer() {
   app.use(cookieParser());
   app.use(cors());
 
+  // Serve uploads statically
   app.use('/uploads', express.static(UPLOADS_PATH));
+
+  // Helper to read/write DB
+  const getData = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
+  const saveData = (file: string, data: any) => fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
   // Middleware to verify JWT
   const authenticateToken = (req: any, res: any, next: any) => {
@@ -76,74 +74,59 @@ async function startServer() {
 
   app.post('/api/auth/register', async (req, res) => {
     const { email, password, displayName, role } = req.body;
+    const users = getData(USERS_FILE);
 
-    try {
-      const users = loadUsers();
-      if (users.find((u: any) => u.email === email)) {
-        return res.status(400).json({ error: 'Identity already initialized in matrix' });
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const isAdminAccount = email.toLowerCase() === 'jenisha261205@gmail.com';
-      const finalRole = isAdminAccount ? 'admin' : role;
-
-      const newUser = {
-        uid: Date.now().toString(),
-        email,
-        password: hashedPassword,
-        displayName,
-        role: finalRole,
-        createdAt: Date.now()
-      };
-
-      users.push(newUser);
-      saveUsers(users);
-
-      const { password: _, ...userWithoutPassword } = newUser;
-      const token = jwt.sign(userWithoutPassword, SECRET_KEY, { expiresIn: '7d' });
-      
-      res.cookie('token', token, { 
-        httpOnly: true, 
-        secure: process.env.NODE_ENV === 'production', 
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 
-      });
-      res.json({ user: userWithoutPassword, token });
-    } catch (err) {
-      console.error("Registration error FULL DETAILS:", err);
-      res.status(500).json({ error: "Could not sync with neural registry", details: err instanceof Error ? err.message : String(err) });
+    if (users.find((u: any) => u.email === email)) {
+      return res.status(400).json({ error: 'Identity already initialized in matrix' });
     }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const isAdminAccount = email.toLowerCase() === 'jenisha261205@gmail.com';
+    const finalRole = isAdminAccount ? 'admin' : role;
+
+    const newUser = {
+      uid: Date.now().toString(),
+      email,
+      password: hashedPassword,
+      displayName,
+      role: finalRole,
+      createdAt: Date.now()
+    };
+
+    users.push(newUser);
+    saveData(USERS_FILE, users);
+
+    const { password: _, ...userWithoutPassword } = newUser;
+    const token = jwt.sign(userWithoutPassword, SECRET_KEY, { expiresIn: '7d' });
+    
+    res.cookie('token', token, { 
+      httpOnly: true, 
+      secure: true, 
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    res.json({ user: userWithoutPassword, token });
   });
 
   app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
-    
-    try {
-      const users = loadUsers();
-      const user = users.find((u: any) => u.email === email);
+    const users = getData(USERS_FILE);
+    const user = users.find((u: any) => u.email === email);
 
-      if (!user) {
-        return res.status(401).json({ error: 'Invalid access sequence' });
-      }
-
-      if (!(await bcrypt.compare(password, user.password))) {
-        return res.status(401).json({ error: 'Invalid access sequence' });
-      }
-
-      const { password: _, ...userWithoutPassword } = user;
-      const token = jwt.sign(userWithoutPassword, SECRET_KEY, { expiresIn: '7d' });
-      
-      res.cookie('token', token, { 
-        httpOnly: true, 
-        secure: process.env.NODE_ENV === 'production', 
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 
-      });
-      res.json({ user: userWithoutPassword, token });
-    } catch (err) {
-      console.error("Login error FULL DETAILS:", err);
-      res.status(500).json({ error: "Auth matrix connection unstable", details: err instanceof Error ? err.message : String(err) });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: 'Invalid access sequence' });
     }
+
+    const { password: _, ...userWithoutPassword } = user;
+    const token = jwt.sign(userWithoutPassword, SECRET_KEY, { expiresIn: '7d' });
+    
+    res.cookie('token', token, { 
+      httpOnly: true, 
+      secure: true, 
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    res.json({ user: userWithoutPassword, token });
   });
 
   app.get('/api/auth/me', authenticateToken, (req: any, res) => {
@@ -151,7 +134,7 @@ async function startServer() {
   });
 
   app.post('/api/auth/logout', (req, res) => {
-    res.clearCookie('token', { sameSite: 'lax' });
+    res.clearCookie('token', { secure: true, sameSite: 'none' });
     res.json({ success: true });
   });
 
@@ -165,76 +148,44 @@ async function startServer() {
 
   app.put('/api/auth/profile', authenticateToken, async (req: any, res) => {
     const { displayName, bio, preferredSport } = req.body;
+    const users = getData(USERS_FILE);
+    const userIndex = users.findIndex((u: any) => u.uid === req.user.uid);
+
+    if (userIndex === -1) return res.status(404).json({ error: 'User not found in matrix' });
+
+    users[userIndex] = {
+      ...users[userIndex],
+      displayName: displayName || users[userIndex].displayName,
+      bio: bio !== undefined ? bio : users[userIndex].bio,
+      preferredSport: preferredSport !== undefined ? preferredSport : users[userIndex].preferredSport,
+      sport: preferredSport || users[userIndex].sport
+    };
+
+    saveData(USERS_FILE, users);
+    const { password: _, ...updatedUser } = users[userIndex];
     
-    try {
-      const users = loadUsers();
-      const userIndex = users.findIndex((u: any) => u.uid === req.user.uid);
-
-      if (userIndex === -1) return res.status(404).json({ error: 'User not found in matrix' });
-
-      const currentData = users[userIndex];
-      const updatedData = {
-        ...currentData,
-        displayName: displayName || currentData.displayName,
-        bio: bio !== undefined ? bio : currentData.bio,
-        preferredSport: preferredSport !== undefined ? preferredSport : currentData.preferredSport,
-        sport: preferredSport || currentData.sport
-      };
-
-      users[userIndex] = updatedData;
-      saveUsers(users);
-
-      const { password: _, ...userWithoutPassword } = updatedData;
-      const token = jwt.sign(userWithoutPassword, SECRET_KEY, { expiresIn: '7d' });
-      res.cookie('token', token, { 
-        httpOnly: true, 
-        secure: process.env.NODE_ENV === 'production', 
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 
-      });
-      
-      res.json({ user: userWithoutPassword });
-    } catch (err) {
-      console.error("Profile update error:", err);
-      res.status(500).json({ error: "Could not update identity profile" });
-    }
-  });
-
-  app.put('/api/auth/security', authenticateToken, async (req: any, res) => {
-    const { currentPassword, newPassword } = req.body;
+    const token = jwt.sign(updatedUser, SECRET_KEY, { expiresIn: '7d' });
+    res.cookie('token', token, { 
+      httpOnly: true, 
+      secure: true, 
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
     
-    try {
-      const users = loadUsers();
-      const userIndex = users.findIndex((u: any) => u.uid === req.user.uid);
-
-      if (userIndex === -1) return res.status(404).json({ error: 'User not found in matrix' });
-
-      const user = users[userIndex];
-      if (!(await bcrypt.compare(currentPassword, user.password))) {
-        return res.status(401).json({ error: 'Current matrix key is invalid.' });
-      }
-
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      users[userIndex].password = hashedPassword;
-      saveUsers(users);
-
-      res.json({ message: 'Neural key updated successfully.' });
-    } catch (err) {
-      console.error("Security update error:", err);
-      res.status(500).json({ error: "Could not update security matrix" });
-    }
+    res.json({ user: updatedUser });
   });
 
   // --- News API ---
   app.get('/api/news', async (req, res) => {
     const parser = new Parser({
       timeout: 5000,
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
     });
     const feeds = [
       'https://www.espn.com/espn/rss/news',
       'https://rss.nytimes.com/services/xml/rss/nyt/Sports.xml',
-      'https://feeds.bbci.co.uk/sport/rss.xml'
+      'https://feeds.bbci.co.uk/sport/rss.xml',
+      'https://www.theguardian.com/sport/rss'
     ];
 
     try {
@@ -252,6 +203,7 @@ async function startServer() {
             link: item.link
           }));
         } catch (e) {
+          console.warn(`Feed synchronization failed for ${url}:`, e);
           return [];
         }
       });
@@ -260,6 +212,7 @@ async function startServer() {
       const items = results.flat();
 
       if (items.length === 0) {
+        // Mock fallback if all external feeds are unreachable in this environment
         const fallbackItems = [
           {
             id: 'fallback-1',
@@ -270,44 +223,55 @@ async function startServer() {
             category: "Intelligence",
             imageUrl: "https://picsum.photos/seed/neural1/800/600",
             link: "#"
+          },
+          {
+            id: 'fallback-2',
+            title: "Matrix Connection Stable: Regional Talent Updates",
+            excerpt: "Scouts report a surge in high-efficiency performance metrics across emerging youth academies.",
+            author: "Network Lead",
+            date: new Date().toISOString(),
+            category: "Regional",
+            imageUrl: "https://picsum.photos/seed/matrix2/800/600",
+            link: "#"
           }
         ];
         return res.json(fallbackItems);
       }
 
-      const sortedItems = items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      // Sort by date descending
+      const sortedItems = items.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateB - dateA;
+      });
+
       res.json(sortedItems.slice(0, 30)); 
     } catch (err) {
+      console.error("General news matrix error:", err);
       res.status(500).json({ error: "Intelligence sync failure" });
     }
   });
 
   // --- Assessments API ---
 
-  app.get('/api/assessments', authenticateToken, async (req: any, res) => {
-    try {
-      const userRole = req.user.role;
-      const userId = req.user.uid;
-      const assessments = loadAssessments();
-      let filtered;
+  app.get('/api/assessments', authenticateToken, (req: any, res) => {
+    const assessments = getData(ASSESSMENTS_FILE);
+    const userRole = req.user.role;
+    const userId = req.user.uid;
 
-      if (userRole === 'admin') {
-        filtered = assessments;
-      } else if (userRole === 'scout') {
-        filtered = assessments.filter((a: any) => a.scoutId === userId);
-      } else {
-        filtered = assessments.filter((a: any) => a.athleteId === userId);
-      }
-
-      const sorted = filtered.sort((a: any, b: any) => b.timestamp - a.timestamp);
-      res.json(sorted);
-    } catch (err) {
-      console.error("Fetch assessments error:", err);
-      res.status(500).json({ error: "Telemetry link failure" });
+    if (userRole === 'admin') {
+      return res.json(assessments);
     }
+    
+    if (userRole === 'scout') {
+      return res.json(assessments.filter((a: any) => a.scoutId === userId));
+    }
+
+    return res.json(assessments.filter((a: any) => a.athleteId === userId));
   });
 
-  app.post('/api/assessments', authenticateToken, async (req: any, res) => {
+  app.post('/api/assessments', authenticateToken, (req: any, res) => {
+    const assessments = getData(ASSESSMENTS_FILE);
     const userRole = req.user.role;
     const userId = req.user.uid;
 
@@ -315,77 +279,26 @@ async function startServer() {
       return res.status(403).json({ error: 'Permission denied: Athletes can only log self-assessments' });
     }
 
-    try {
-      const assessments = loadAssessments();
-      const newAssessment = {
-        id: Date.now().toString(),
-        ...req.body,
-        scoutId: userRole === 'athlete' ? null : userId,
-        type: userRole === 'athlete' ? 'self' : 'scout',
-        timestamp: Date.now()
-      };
+    const newAssessment = {
+      id: Date.now().toString(),
+      ...req.body,
+      scoutId: userRole === 'athlete' ? null : userId,
+      type: userRole === 'athlete' ? 'self' : 'scout',
+      timestamp: Date.now()
+    };
 
-      assessments.push(newAssessment);
-      saveAssessments(assessments);
-      res.json(newAssessment);
-    } catch (err) {
-      console.error("Create assessment error:", err);
-      res.status(500).json({ error: "Matrix write failure" });
-    }
+    assessments.push(newAssessment);
+    saveData(ASSESSMENTS_FILE, assessments);
+    res.json(newAssessment);
   });
 
   // --- Users API ---
-  app.get('/api/users/athletes', authenticateToken, async (req, res) => {
-    try {
-      const users = loadUsers();
-      const athletes = users.filter((u: any) => u.role === 'athlete').map((u: any) => {
-        const { password, ...safeUser } = u;
-        return safeUser;
-      });
-      res.json(athletes);
-    } catch (err) {
-      res.status(500).json({ error: "Could not retrieve athlete matrix" });
-    }
+  app.get('/api/users/athletes', authenticateToken, (req: any, res) => {
+    const users = getData(USERS_FILE);
+    res.json(users.filter((u: any) => u.role === 'athlete').map(({ password, ...u }: any) => u));
   });
 
-  // --- Chat API ---
-  app.post('/api/chat', authenticateToken, async (req: any, res) => {
-    const { messages, contextualInput = '', config: reqConfig } = req.body;
-    const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-    
-    try {
-      let combinedHistory = messages.filter((m: any, i: number) => !(i === 0 && m.role === 'model'));
-      const formattedHistory = combinedHistory.map((m: any) => ({ 
-        role: m.role, 
-        parts: [{ text: m.content }] 
-      }));
-
-      const contents = [...formattedHistory];
-      const lastMessage = contents[contents.length - 1];
-      
-      if (!lastMessage || lastMessage.role !== 'user' || lastMessage.parts[0].text !== contextualInput) {
-        contents.push({ role: 'user', parts: [{ text: contextualInput }] });
-      }
-
-      const alternatingContents = contents.filter((m, i) => i === 0 || m.role !== contents[i - 1].role);
-
-      const response = await genAI.models.generateContent({
-        model: "models/gemini-flash-latest",
-        contents: alternatingContents,
-        config: {
-          systemInstruction: {
-            parts: [{ text: reqConfig?.systemInstruction || `You are an intelligent, friendly, and supportive AI assistant for a sports and wellness platform.` }]
-          }
-        }
-      });
-
-      const botText = response.text || (typeof response.text === 'function' ? response.text() : "I'm processing your request.");
-      res.json({ text: botText });
-    } catch (err: any) {
-      res.status(500).json({ error: "Neural link failed", details: err.message });
-    }
-  });
-
+  // Vite middleware setup
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

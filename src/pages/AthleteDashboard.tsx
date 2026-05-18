@@ -139,7 +139,7 @@ export default function AthleteDashboard() {
 
   const progressData = [...assessments].reverse().map(a => ({
     date: new Date(a.timestamp).toLocaleDateString(),
-    score: (Object.values(a.metrics) as number[]).reduce((acc, v) => acc + v, 0) / 5,
+    score: Object.values(a.metrics).reduce((acc, v) => acc + v, 0) / 5,
     ...a.metrics
   }));
 
@@ -164,7 +164,7 @@ export default function AthleteDashboard() {
   }));
 
   const averageScore = assessments.length > 0 
-    ? (assessments.reduce((acc, a) => acc + ((Object.values(a.metrics) as number[]).reduce((s, v) => s + v, 0) / 5), 0) / assessments.length).toFixed(1)
+    ? (assessments.reduce((acc, a) => acc + (Object.values(a.metrics).reduce((s, v) => s + v, 0) / 5), 0) / assessments.length).toFixed(1)
     : '0.0';
 
   return (
@@ -178,7 +178,7 @@ export default function AthleteDashboard() {
           </div>
           <p className="text-text-dim text-xs font-bold uppercase tracking-[0.2em]">Bio-metric integrity score: {averageScore}% Aggregate</p>
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="flex items-center gap-4">
           <button 
             onClick={() => setShowVideoAnalysis(!showVideoAnalysis)}
             className="px-6 py-3 bg-surface border border-border rounded-xl font-black text-[10px] uppercase tracking-widest hover:border-accent/50 transition-all flex items-center gap-2"
@@ -234,11 +234,11 @@ export default function AthleteDashboard() {
                <Activity size={120} />
             </div>
             
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 relative z-10">
+            <div className="flex items-center justify-between mb-8 relative z-10">
               <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
                 <Target size={16} className="text-accent" /> Kinetic Evolution Timeline
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2">
                  {['1W', '1M', '3M', '6M', 'ALL'].map(t => (
                    <button key={t} className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border transition-all ${t === 'ALL' ? 'bg-accent text-bg border-accent' : 'bg-surface-alt text-text-dim border-border hover:border-accent/40'}`}>
                      {t}
@@ -313,7 +313,7 @@ export default function AthleteDashboard() {
                          </div>
                        </div>
                        <div className="text-right">
-                          <p className="text-sm font-bold text-accent">{((Object.values(a.metrics) as number[]).reduce((s, v) => s + v, 0) / 5).toFixed(1)}</p>
+                          <p className="text-sm font-bold text-accent">{(Object.values(a.metrics).reduce((s, v) => s + v, 0) / 5).toFixed(1)}</p>
                           <p className="text-[8px] font-black uppercase text-text-dim">Score Index</p>
                        </div>
                     </div>
